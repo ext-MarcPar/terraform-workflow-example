@@ -1,0 +1,23 @@
+# Default — product team owns everything not explicitly matched below
+* @onterris/PRODUCT_TEAM
+
+# ── Workflow files ─────────────────────────────────────────────────────────────
+# STRICTEST gate. The OIDC token for the Apply SP is issued inside these files.
+# A single-line workflow change can exfiltrate the token and own the subscription.
+# Require both BU leads AND platform team on every change, including 1-line diffs.
+/.github/                   @onterris/PRODUCT_LEADS @onterris/platform-team
+
+# ── L1 Core — platform-facing configuration ───────────────────────────────────
+# Hub peering, IPAM pool consumption, DNS zone links, and baseline NSG rules
+# are platform-owned. The platform team is the accountable owner for these paths.
+/core/platform/             @onterris/platform-team
+
+# BU-owned core (subnets, app-internal NSGs, NAT GW, UAMIs).
+# Platform team is required reviewer (catches policy violations, address-space
+# conflicts, posture drift) but the product team is the accountable owner.
+/core/bu/                   @onterris/PRODUCT_TEAM @onterris/platform-team
+
+# ── L5 Edge — WAF policy and Front Door ───────────────────────────────────────
+# Edge changes are product-team-owned but require platform review because
+# WAF rules and Front Door origin config affect the blast radius of a compromise.
+/edge/                      @onterris/PRODUCT_TEAM @onterris/platform-team

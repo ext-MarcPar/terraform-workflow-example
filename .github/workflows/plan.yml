@@ -1,0 +1,116 @@
+name: Terraform Plan
+
+# Runs on every PR targeting main. Plans all 5 layers sequentially against
+# the dev environment state. Posts per-tier plan + cost comments on the PR.
+#
+# Layers run sequentially because each layer's remote.tf reads the previous
+# layer's state outputs. If all upstream state already exists, you can
+# remove the needs: chain and let layers plan in parallel.
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
+
+jobs:
+  # ── L1 Core ──────────────────────────────────────────────────────────────
+  core:
+    name: Plan / core
+    uses: ./.github/workflows/reusable-az-terraform.yml
+    with:
+      tier: core
+      environment: dev
+      working_directory: core
+      state_resource_group: ${{ vars.TF_STATE_RESOURCE_GROUP }}
+      state_storage_account: ${{ vars.TF_STATE_STORAGE_ACCOUNT }}
+      state_container: ${{ vars.TF_STATE_CONTAINER }}
+      state_key: ${{ vars.BU_CODE }}/${{ vars.PRODUCT_NAME }}/core/terraform.tfstate
+    secrets:
+      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID_PLAN }}
+      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID_DEV }}
+      INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
+
+  # ── L2 Data ───────────────────────────────────────────────────────────────
+  data:
+    name: Plan / data
+    needs: core
+    uses: ./.github/workflows/reusable-az-terraform.yml
+    with:
+      tier: data
+      environment: dev
+      working_directory: data
+      state_resource_group: ${{ vars.TF_STATE_RESOURCE_GROUP }}
+      state_storage_account: ${{ vars.TF_STATE_STORAGE_ACCOUNT }}
+      state_container: ${{ vars.TF_STATE_CONTAINER }}
+      state_key: ${{ vars.BU_CODE }}/${{ vars.PRODUCT_NAME }}/data/terraform.tfstate
+    secrets:
+      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID_PLAN }}
+      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID_DEV }}
+      INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
+
+  # ── L3 Compute ────────────────────────────────────────────────────────────
+  compute:
+    name: Plan / compute
+    needs: data
+    uses: ./.github/workflows/reusable-az-terraform.yml
+    with:
+      tier: compute
+      environment: dev
+      working_directory: compute
+      state_resource_group: ${{ vars.TF_STATE_RESOURCE_GROUP }}
+      state_storage_account: ${{ vars.TF_STATE_STORAGE_ACCOUNT }}
+      state_container: ${{ vars.TF_STATE_CONTAINER }}
+      state_key: ${{ vars.BU_CODE }}/${{ vars.PRODUCT_NAME }}/compute/terraform.tfstate
+    secrets:
+      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID_PLAN }}
+      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID_DEV }}
+      INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
+
+  # ── L4 Workloads (optional) ───────────────────────────────────────────────
+  # Remove this job if the product has no Terraform-managed workload layer.
+  workloads:
+    name: Plan / workloads
+    needs: compute
+    uses: ./.github/workflows/reusable-az-terraform.yml
+    with:
+      tier: workloads
+      environment: dev
+      working_directory: workloads
+      state_resource_group: ${{ vars.TF_STATE_RESOURCE_GROUP }}
+      state_storage_account: ${{ vars.TF_STATE_STORAGE_ACCOUNT }}
+      state_container: ${{ vars.TF_STATE_CONTAINER }}
+      state_key: ${{ vars.BU_CODE }}/${{ vars.PRODUCT_NAME }}/workloads/terraform.tfstate
+    secrets:
+      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID_PLAN }}
+      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID_DEV }}
+      INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
+
+  # ── L5 Edge (optional) ────────────────────────────────────────────────────
+  # L4 and L5 are peer-optional off L3. Edge does not depend on workloads
+  # in the general case. Change needs: to [workloads] only if your edge
+  # layer references resource IDs created by the workloads layer.
+  edge:
+    name: Plan / edge
+    needs: compute
+    uses: ./.github/workflows/reusable-az-terraform.yml
+    with:
+      tier: edge
+      environment: dev
+      working_directory: edge
+      state_resource_group: ${{ vars.TF_STATE_RESOURCE_GROUP }}
+      state_storage_account: ${{ vars.TF_STATE_STORAGE_ACCOUNT }}
+      state_container: ${{ vars.TF_STATE_CONTAINER }}
+      state_key: ${{ vars.BU_CODE }}/${{ vars.PRODUCT_NAME }}/edge/terraform.tfstate
+    secrets:
+      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID_PLAN }}
+      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID_DEV }}
+      INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}

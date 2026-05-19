@@ -1,0 +1,125 @@
+name: Update Changelog on Release
+
+# Fires whenever a GitHub Release is published — including the releases created
+# automatically by the apply workflow (reusable-az-terraform.yml → release job).
+#
+# Responsibility split:
+#   apply workflow  → creates the GitHub Release with full infrastructure detail
+#   this workflow   → reads that release and maintains CHANGELOG.md as the
+#                     human-readable audit trail of all deploys
+#
+# CHANGELOG.md format follows Keep a Changelog (keepachangelog.com).
+# Entries are prepended so the most recent deploy is always at the top.
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  update-changelog:
+    name: Update CHANGELOG.md
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          ref: main
+          fetch-depth: 0
+          # Use the default GITHUB_TOKEN — needs contents: write permission above.
+          # For repos with branch protection that blocks bot pushes, replace with
+          # a PAT that has bypass rights: token: ${{ secrets.CHANGELOG_PAT }}
+
+      - name: Prepend release entry to CHANGELOG.md
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea  # v7.0.1
+        with:
+          script: |
+            const fs   = require('fs');
+            const path = require('path');
+
+            const release     = context.payload.release;
+            const tag         = release.tag_name;
+            const name        = release.name        || tag;
+            const body        = (release.body       || '').trim();
+            const url         = release.html_url;
+            const publishedAt = release.published_at;
+            const prerelease  = release.prerelease;
+            const date        = publishedAt.slice(0, 10);
+
+            // ── Build the changelog entry ─────────────────────────────────────
+            // Heading links to the GitHub Release so reviewers can navigate to
+            // the full plan output and run logs from the CHANGELOG directly.
+            const badge = prerelease
+              ? '`pre-release`'
+              : '`release`';
+
+            const lines = [
+              `## [${tag}](${url}) — ${date} ${badge}`,
+              '',
+              `**${name}**`,
+              '',
+            ];
+
+            if (body) {
+              lines.push(body);
+              lines.push('');
+            }
+
+            lines.push('---', '');
+            const entry = lines.join('\n');
+
+            // ── Read or initialise CHANGELOG.md ──────────────────────────────
+            const changelogPath = path.join(process.env.GITHUB_WORKSPACE, 'CHANGELOG.md');
+            let content;
+
+            if (fs.existsSync(changelogPath)) {
+              content = fs.readFileSync(changelogPath, 'utf8');
+            } else {
+              content = [
+                '# Changelog',
+                '',
+                'All infrastructure changes are documented here.',
+                'Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).',
+                '',
+                '---',
+                '',
+              ].join('\n');
+            }
+
+            // ── Insert after the first `---` separator ────────────────────────
+            // Keeps the header block intact and puts the newest entry first.
+            const separatorIdx = content.indexOf('\n---\n');
+            let updated;
+            if (separatorIdx !== -1) {
+              const insertAt = separatorIdx + '\n---\n'.length;
+              updated = content.slice(0, insertAt) + '\n' + entry + content.slice(insertAt);
+            } else {
+              // No separator found — append to the end as a fallback
+              updated = content.trimEnd() + '\n\n---\n\n' + entry;
+            }
+
+            fs.writeFileSync(changelogPath, updated, 'utf8');
+            core.info(`Prepended release ${tag} to CHANGELOG.md`);
+
+      - name: Commit and push CHANGELOG.md
+        shell: bash
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add CHANGELOG.md
+
+          if git diff --staged --quiet; then
+            echo "CHANGELOG.md already up to date — nothing to commit."
+            exit 0
+          fi
+
+          git commit -m "docs(changelog): ${TAG} [skip ci]"
+
+          # Retry push once in case of a concurrent commit race (e.g. two
+          # releases published in quick succession by parallel apply jobs).
+          git push || (git pull --rebase && git push)

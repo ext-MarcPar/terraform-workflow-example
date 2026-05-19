@@ -1,0 +1,101 @@
+name: Terraform Layer
+description: >
+  Run terraform init + plan or apply for a single deployment layer.
+  ARM_CLIENT_ID, ARM_TENANT_ID, ARM_SUBSCRIPTION_ID, and ARM_USE_OIDC
+  must be set as environment variables in the calling job.
+
+inputs:
+  layer:
+    description: Layer directory name (core | data | compute | workloads | edge).
+    required: true
+  command:
+    description: "Terraform command: plan or apply."
+    required: true
+  state-rg:
+    description: Resource group containing the Terraform state storage account.
+    required: true
+  state-sa:
+    description: Terraform state storage account name.
+    required: true
+  state-container:
+    description: Terraform state blob container name.
+    required: true
+  bu-code:
+    description: 2-character BU code (e.g. ct, on).
+    required: true
+  product-name:
+    description: Product name with instance suffix (e.g. example01).
+    required: true
+  tf-version:
+    description: Terraform version to use.
+    required: false
+    default: "1.11.4"
+  post-pr-comment:
+    description: >
+      Post plan output as a PR comment. Only meaningful for plan on
+      pull_request events; the calling job needs pull-requests: write.
+    required: false
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@b9cd54531c595e89e64e7c8d7e2fca24da5f5a7e  # v3.2.0
+      with:
+        terraform_version: ${{ inputs.tf-version }}
+
+    - name: Terraform Init
+      shell: bash
+      working-directory: ${{ inputs.layer }}
+      run: |
+        terraform init \
+          -backend-config="resource_group_name=${{ inputs.state-rg }}" \
+          -backend-config="storage_account_name=${{ inputs.state-sa }}" \
+          -backend-config="container_name=${{ inputs.state-container }}" \
+          -backend-config="key=${{ inputs.bu-code }}/${{ inputs.product-name }}/${{ inputs.layer }}/terraform.tfstate"
+
+    - name: Terraform Plan
+      if: inputs.command == 'plan'
+      id: plan
+      shell: bash
+      working-directory: ${{ inputs.layer }}
+      run: terraform plan -no-color 2>&1 | tee "${{ github.workspace }}/tf-${{ inputs.layer }}.txt"
+      continue-on-error: true
+
+    - name: Terraform Apply
+      if: inputs.command == 'apply'
+      shell: bash
+      working-directory: ${{ inputs.layer }}
+      run: terraform apply -auto-approve -no-color
+
+    - name: Post plan comment on PR
+      if: inputs.post-pr-comment == 'true' && inputs.command == 'plan'
+      uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea  # v7.0.1
+      with:
+        script: |
+          const fs = require('fs');
+          const path = '${{ github.workspace }}/tf-${{ inputs.layer }}.txt';
+          const output = fs.existsSync(path) ? fs.readFileSync(path, 'utf8') : '(no output)';
+          const truncated = output.length > 50000
+            ? output.slice(0, 50000) + '\n\n_(output truncated — see Actions run logs for full plan)_'
+            : output;
+          await github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: [
+              `### \`${{ inputs.layer }}\` — Terraform Plan`,
+              '<details><summary>Show output</summary>',
+              '',
+              '```hcl',
+              truncated,
+              '```',
+              '</details>'
+            ].join('\n')
+          });
+
+    - name: Fail on plan error
+      if: inputs.command == 'plan' && steps.plan.outcome == 'failure'
+      shell: bash
+      run: exit 1
