@@ -16,24 +16,21 @@ name: Terraform Apply
 #   core-prd / data-prd / compute-prd / workloads-prd / edge-prd
 #     Required reviewers: 2 × (<product-team> + <platform-team>)
 #
-# Each environment must have these variables:
-#   AZURE_CLIENT_ID_APPLY   Apply SP client ID for this env
-#   AZURE_SUBSCRIPTION_ID   Product subscription ID for this env
+# No environment variables are needed — LocalStack requires only the repo secret.
 #
 # ── HOW APPROVAL WORKS ────────────────────────────────────────────────────────
 # When the apply job starts, GitHub pauses and notifies the required reviewers.
 # Reviewers see the PR plan comments (posted by plan.yml) before approving.
-# Approving in GitHub Environments is the human gate that releases the OIDC
-# token exchange for the Apply SP.
+# Approving in GitHub Environments releases the job to continue.
+#
+# No secrets are required — LocalStack Community pulls without authentication.
 
 on:
   push:
     branches: [main]
 
 permissions:
-  contents: write   # for CHANGELOG commit and GitHub Release tag
-  id-token: write   # OIDC token for Azure login
-  pull-requests: read
+  contents: write   # for GitHub Release tag
 
 jobs:
   # ── DEV ─────────────────────────────────────────────────────────────────────
@@ -44,14 +41,7 @@ jobs:
       tier: core
       environment: dev
       working_directory: core
-      state_resource_group: ${{ vars.TF_STATE_RESOURCE_GROUP }}
-      state_storage_account: ${{ vars.TF_STATE_STORAGE_ACCOUNT }}
-      state_container: ${{ vars.TF_STATE_CONTAINER }}
-      state_key: ${{ vars.BU_CODE }}/${{ vars.PRODUCT_NAME }}/core/terraform.tfstate
-    secrets:
-      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID_APPLY }}
-      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
-      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+    secrets: inherit
 
   data-dev:
     name: Apply / data / dev
@@ -61,14 +51,7 @@ jobs:
       tier: data
       environment: dev
       working_directory: data
-      state_resource_group: ${{ vars.TF_STATE_RESOURCE_GROUP }}
-      state_storage_account: ${{ vars.TF_STATE_STORAGE_ACCOUNT }}
-      state_container: ${{ vars.TF_STATE_CONTAINER }}
-      state_key: ${{ vars.BU_CODE }}/${{ vars.PRODUCT_NAME }}/data/terraform.tfstate
-    secrets:
-      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID_APPLY }}
-      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
-      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+    secrets: inherit
 
   compute-dev:
     name: Apply / compute / dev
@@ -78,14 +61,7 @@ jobs:
       tier: compute
       environment: dev
       working_directory: compute
-      state_resource_group: ${{ vars.TF_STATE_RESOURCE_GROUP }}
-      state_storage_account: ${{ vars.TF_STATE_STORAGE_ACCOUNT }}
-      state_container: ${{ vars.TF_STATE_CONTAINER }}
-      state_key: ${{ vars.BU_CODE }}/${{ vars.PRODUCT_NAME }}/compute/terraform.tfstate
-    secrets:
-      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID_APPLY }}
-      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
-      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+    secrets: inherit
 
   workloads-dev:
     name: Apply / workloads / dev
@@ -95,14 +71,7 @@ jobs:
       tier: workloads
       environment: dev
       working_directory: workloads
-      state_resource_group: ${{ vars.TF_STATE_RESOURCE_GROUP }}
-      state_storage_account: ${{ vars.TF_STATE_STORAGE_ACCOUNT }}
-      state_container: ${{ vars.TF_STATE_CONTAINER }}
-      state_key: ${{ vars.BU_CODE }}/${{ vars.PRODUCT_NAME }}/workloads/terraform.tfstate
-    secrets:
-      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID_APPLY }}
-      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
-      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+    secrets: inherit
 
   edge-dev:
     name: Apply / edge / dev
@@ -112,14 +81,7 @@ jobs:
       tier: edge
       environment: dev
       working_directory: edge
-      state_resource_group: ${{ vars.TF_STATE_RESOURCE_GROUP }}
-      state_storage_account: ${{ vars.TF_STATE_STORAGE_ACCOUNT }}
-      state_container: ${{ vars.TF_STATE_CONTAINER }}
-      state_key: ${{ vars.BU_CODE }}/${{ vars.PRODUCT_NAME }}/edge/terraform.tfstate
-    secrets:
-      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID_APPLY }}
-      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
-      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+    secrets: inherit
 
   # ── UAT ─────────────────────────────────────────────────────────────────────
   core-uat:
@@ -130,14 +92,7 @@ jobs:
       tier: core
       environment: uat
       working_directory: core
-      state_resource_group: ${{ vars.TF_STATE_RESOURCE_GROUP }}
-      state_storage_account: ${{ vars.TF_STATE_STORAGE_ACCOUNT }}
-      state_container: ${{ vars.TF_STATE_CONTAINER }}
-      state_key: ${{ vars.BU_CODE }}/${{ vars.PRODUCT_NAME }}/core/terraform.tfstate
-    secrets:
-      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID_APPLY }}
-      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
-      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+    secrets: inherit
 
   data-uat:
     name: Apply / data / uat
@@ -147,14 +102,7 @@ jobs:
       tier: data
       environment: uat
       working_directory: data
-      state_resource_group: ${{ vars.TF_STATE_RESOURCE_GROUP }}
-      state_storage_account: ${{ vars.TF_STATE_STORAGE_ACCOUNT }}
-      state_container: ${{ vars.TF_STATE_CONTAINER }}
-      state_key: ${{ vars.BU_CODE }}/${{ vars.PRODUCT_NAME }}/data/terraform.tfstate
-    secrets:
-      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID_APPLY }}
-      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
-      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+    secrets: inherit
 
   compute-uat:
     name: Apply / compute / uat
@@ -164,14 +112,7 @@ jobs:
       tier: compute
       environment: uat
       working_directory: compute
-      state_resource_group: ${{ vars.TF_STATE_RESOURCE_GROUP }}
-      state_storage_account: ${{ vars.TF_STATE_STORAGE_ACCOUNT }}
-      state_container: ${{ vars.TF_STATE_CONTAINER }}
-      state_key: ${{ vars.BU_CODE }}/${{ vars.PRODUCT_NAME }}/compute/terraform.tfstate
-    secrets:
-      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID_APPLY }}
-      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
-      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+    secrets: inherit
 
   workloads-uat:
     name: Apply / workloads / uat
@@ -181,14 +122,7 @@ jobs:
       tier: workloads
       environment: uat
       working_directory: workloads
-      state_resource_group: ${{ vars.TF_STATE_RESOURCE_GROUP }}
-      state_storage_account: ${{ vars.TF_STATE_STORAGE_ACCOUNT }}
-      state_container: ${{ vars.TF_STATE_CONTAINER }}
-      state_key: ${{ vars.BU_CODE }}/${{ vars.PRODUCT_NAME }}/workloads/terraform.tfstate
-    secrets:
-      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID_APPLY }}
-      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
-      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+    secrets: inherit
 
   edge-uat:
     name: Apply / edge / uat
@@ -198,14 +132,7 @@ jobs:
       tier: edge
       environment: uat
       working_directory: edge
-      state_resource_group: ${{ vars.TF_STATE_RESOURCE_GROUP }}
-      state_storage_account: ${{ vars.TF_STATE_STORAGE_ACCOUNT }}
-      state_container: ${{ vars.TF_STATE_CONTAINER }}
-      state_key: ${{ vars.BU_CODE }}/${{ vars.PRODUCT_NAME }}/edge/terraform.tfstate
-    secrets:
-      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID_APPLY }}
-      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
-      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+    secrets: inherit
 
   # ── PRD ─────────────────────────────────────────────────────────────────────
   core-prd:
@@ -216,14 +143,7 @@ jobs:
       tier: core
       environment: prd
       working_directory: core
-      state_resource_group: ${{ vars.TF_STATE_RESOURCE_GROUP }}
-      state_storage_account: ${{ vars.TF_STATE_STORAGE_ACCOUNT }}
-      state_container: ${{ vars.TF_STATE_CONTAINER }}
-      state_key: ${{ vars.BU_CODE }}/${{ vars.PRODUCT_NAME }}/core/terraform.tfstate
-    secrets:
-      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID_APPLY }}
-      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
-      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+    secrets: inherit
 
   data-prd:
     name: Apply / data / prd
@@ -233,14 +153,7 @@ jobs:
       tier: data
       environment: prd
       working_directory: data
-      state_resource_group: ${{ vars.TF_STATE_RESOURCE_GROUP }}
-      state_storage_account: ${{ vars.TF_STATE_STORAGE_ACCOUNT }}
-      state_container: ${{ vars.TF_STATE_CONTAINER }}
-      state_key: ${{ vars.BU_CODE }}/${{ vars.PRODUCT_NAME }}/data/terraform.tfstate
-    secrets:
-      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID_APPLY }}
-      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
-      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+    secrets: inherit
 
   compute-prd:
     name: Apply / compute / prd
@@ -250,14 +163,7 @@ jobs:
       tier: compute
       environment: prd
       working_directory: compute
-      state_resource_group: ${{ vars.TF_STATE_RESOURCE_GROUP }}
-      state_storage_account: ${{ vars.TF_STATE_STORAGE_ACCOUNT }}
-      state_container: ${{ vars.TF_STATE_CONTAINER }}
-      state_key: ${{ vars.BU_CODE }}/${{ vars.PRODUCT_NAME }}/compute/terraform.tfstate
-    secrets:
-      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID_APPLY }}
-      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
-      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+    secrets: inherit
 
   workloads-prd:
     name: Apply / workloads / prd
@@ -267,14 +173,7 @@ jobs:
       tier: workloads
       environment: prd
       working_directory: workloads
-      state_resource_group: ${{ vars.TF_STATE_RESOURCE_GROUP }}
-      state_storage_account: ${{ vars.TF_STATE_STORAGE_ACCOUNT }}
-      state_container: ${{ vars.TF_STATE_CONTAINER }}
-      state_key: ${{ vars.BU_CODE }}/${{ vars.PRODUCT_NAME }}/workloads/terraform.tfstate
-    secrets:
-      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID_APPLY }}
-      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
-      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+    secrets: inherit
 
   edge-prd:
     name: Apply / edge / prd
@@ -284,11 +183,4 @@ jobs:
       tier: edge
       environment: prd
       working_directory: edge
-      state_resource_group: ${{ vars.TF_STATE_RESOURCE_GROUP }}
-      state_storage_account: ${{ vars.TF_STATE_STORAGE_ACCOUNT }}
-      state_container: ${{ vars.TF_STATE_CONTAINER }}
-      state_key: ${{ vars.BU_CODE }}/${{ vars.PRODUCT_NAME }}/edge/terraform.tfstate
-    secrets:
-      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID_APPLY }}
-      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
-      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+    secrets: inherit

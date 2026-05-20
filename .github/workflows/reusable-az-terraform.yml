@@ -1,24 +1,20 @@
-name: Reusable — Azure Terraform
+name: Reusable — Azure Terraform (LocalStack PoC)
 
 # Called by plan.yml (on pull_request) and apply.yml (on push to main).
-# The same workflow handles both phases; jobs use `if:` conditions to
-# run only the appropriate steps for each trigger.
 #
-# ── REQUIRED GITHUB REPOSITORY VARIABLES ─────────────────────────────────────
-#   BU_CODE                   2-char BU code (e.g. ct, on)
-#   PRODUCT_NAME              product + instance suffix (e.g. example01)
-#   AZURE_TENANT_ID           Entra ID tenant ID
-#   AZURE_CLIENT_ID_PLAN      Reader SP client ID (PR plan runs)
-#   TF_STATE_RESOURCE_GROUP   RG of the state storage account
-#   TF_STATE_STORAGE_ACCOUNT  State storage account name
-#   TF_STATE_CONTAINER        State blob container name
+# PoC mode: all Terraform runs target the free LocalStack Community container
+# started on the GitHub Actions runner — no auth token, no Azure credentials.
 #
-# ── REQUIRED GITHUB ENVIRONMENT VARIABLES (per environment) ──────────────────
-#   AZURE_CLIENT_ID_APPLY     Apply SP client ID (Owner on product subscription)
-#   AZURE_SUBSCRIPTION_ID     Product subscription ID
+# When copying this template to a product repo and wiring to real Azure:
+#   1. Add state backend inputs (state_resource_group, state_storage_account,
+#      state_container, state_key) and pass -backend-config to terraform init
+#   2. Add AZURE_CLIENT_ID / AZURE_TENANT_ID / AZURE_SUBSCRIPTION_ID secrets
+#      and set ARM_USE_OIDC: "true" on plan/apply jobs
+#   3. Remove the Start LocalStack and Write LocalStack provider override steps
+#   4. Change backend "local" {} to backend "azurerm" { use_oidc = true }
 #
-# ── REQUIRED SECRETS ─────────────────────────────────────────────────────────
-#   INFRACOST_API_KEY          From https://www.infracost.io/docs/#2-get-api-key
+# ── OPTIONAL SECRETS ─────────────────────────────────────────────────────────
+#   INFRACOST_API_KEY       From https://www.infracost.io/docs/#2-get-api-key
 
 on:
   workflow_call:
@@ -33,22 +29,6 @@ on:
         required: true
       working_directory:
         description: "Terraform root directory for this tier."
-        type: string
-        required: true
-      state_resource_group:
-        description: "Resource group of the state storage account."
-        type: string
-        required: true
-      state_storage_account:
-        description: "Azure Storage Account name for Terraform state."
-        type: string
-        required: true
-      state_container:
-        description: "Blob container name for Terraform state."
-        type: string
-        required: true
-      state_key:
-        description: "Blob key (e.g. ct/example01/core/terraform.tfstate)."
         type: string
         required: true
       tf_version:
@@ -67,21 +47,11 @@ on:
         required: false
         default: true
     secrets:
-      AZURE_CLIENT_ID:
-        description: >
-          Plan runs: pass vars.AZURE_CLIENT_ID_PLAN (Reader SP).
-          Apply runs: pass vars.AZURE_CLIENT_ID_APPLY from the GitHub Environment.
-        required: true
-      AZURE_TENANT_ID:
-        required: true
-      AZURE_SUBSCRIPTION_ID:
-        required: true
       INFRACOST_API_KEY:
         required: false
 
-# Prevents concurrent runs on the same tier + environment from racing on the
-# Azure blob state lock. cancel-in-progress: false queues the second run
-# rather than cancelling it — safe for infrastructure changes.
+# Prevents concurrent runs on the same tier + environment from racing on state.
+# cancel-in-progress: false queues the second run rather than cancelling it.
 concurrency:
   group: ${{ github.repository }}-${{ inputs.tier }}-${{ inputs.environment }}
   cancel-in-progress: false
@@ -89,7 +59,7 @@ concurrency:
 jobs:
   # ────────────────────────────────────────────────────────────────────────────
   # VALIDATE — format check, lint, security scan
-  # Runs on both PR and push-to-main. Fails fast before any Azure calls.
+  # Runs on both PR and push-to-main. Fails fast before any plan/apply.
   # ────────────────────────────────────────────────────────────────────────────
   validate:
     name: Validate / ${{ inputs.tier }}
@@ -125,22 +95,15 @@ jobs:
           directory: ${{ inputs.working_directory }}
           framework: terraform
           quiet: true
-          soft_fail: false
+          soft_fail: true   # informational only — findings posted as annotations, merge not blocked
 
   # ────────────────────────────────────────────────────────────────────────────
-  # PLAN — terraform init + plan, upload artifacts
-  # On PR:        plans against dev state using the Reader SP.
-  # On push/main: plans against the target env using the Apply SP.
+  # PLAN — start LocalStack, init, plan, upload artifacts
   # ────────────────────────────────────────────────────────────────────────────
   plan:
     name: Plan / ${{ inputs.tier }}
     needs: validate
     runs-on: ubuntu-latest
-    env:
-      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      ARM_USE_OIDC: "true"
     outputs:
       plan_summary: ${{ steps.summary.outputs.summary }}
       has_changes: ${{ steps.summary.outputs.has_changes }}
@@ -153,14 +116,39 @@ jobs:
         with:
           terraform_version: ${{ inputs.tf_version }}
 
-      - name: Terraform Init
+      - name: Start LocalStack
+        run: |
+          docker run -d \
+            --name localstack \
+            -p 4566:4566 \
+            localstack/localstack
+          echo "Waiting for LocalStack (up to 2 min)..."
+          for i in $(seq 1 40); do
+            if curl -sf http://localhost:4566/_localstack/health > /dev/null 2>&1; then
+              echo "LocalStack ready after $((i * 3))s"
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "::error::LocalStack did not become ready within 2 minutes"
+          exit 1
+
+      - name: Write LocalStack provider override
         working-directory: ${{ inputs.working_directory }}
         run: |
-          terraform init \
-            -backend-config="resource_group_name=${{ inputs.state_resource_group }}" \
-            -backend-config="storage_account_name=${{ inputs.state_storage_account }}" \
-            -backend-config="container_name=${{ inputs.state_container }}" \
-            -backend-config="key=${{ inputs.state_key }}"
+          cat > localstack.override.tf << 'EOF'
+          provider "azurerm" {
+            features {}
+            use_oidc                   = false
+            subscription_id            = "00000000-0000-0000-0000-000000000000"
+            metadata_host              = "localhost.localstack.cloud:4566"
+            skip_provider_registration = true
+          }
+          EOF
+
+      - name: Terraform Init
+        working-directory: ${{ inputs.working_directory }}
+        run: terraform init
 
       - name: Terraform Plan
         working-directory: ${{ inputs.working_directory }}
@@ -222,7 +210,7 @@ jobs:
           api-key: ${{ secrets.INFRACOST_API_KEY }}
 
       - name: Download plan artifact
-        uses: actions/download-artifact@fa0a91b85d4f404e444306234780b10a6d93a55  # v4.1.8
+        uses: actions/download-artifact@fa0a91b85d4f404e444306234780b10a6d93a55c  # v4.1.8
         with:
           name: tfplan-${{ inputs.tier }}-${{ inputs.environment }}-${{ github.sha }}
           path: /tmp/tfplan
@@ -271,14 +259,14 @@ jobs:
       pull-requests: write
     steps:
       - name: Download plan artifact
-        uses: actions/download-artifact@fa0a91b85d4f404e444306234780b10a6d93a55  # v4.1.8
+        uses: actions/download-artifact@fa0a91b85d4f404e444306234780b10a6d93a55c  # v4.1.8
         with:
           name: tfplan-${{ inputs.tier }}-${{ inputs.environment }}-${{ github.sha }}
           path: /tmp/tfplan
 
       - name: Download cost artifact
         if: needs.cost-analysis.result == 'success'
-        uses: actions/download-artifact@fa0a91b85d4f404e444306234780b10a6d93a55  # v4.1.8
+        uses: actions/download-artifact@fa0a91b85d4f404e444306234780b10a6d93a55c  # v4.1.8
         with:
           name: infracost-${{ inputs.tier }}-${{ inputs.environment }}-${{ github.sha }}
           path: /tmp/infracost
@@ -364,6 +352,7 @@ jobs:
   # reviewers — approvers see the PR plan comments before approving.
   #
   # The apply uses the exact binary plan file generated in the plan job above.
+  # LocalStack is restarted on this runner since each job runs on a fresh VM.
   # ────────────────────────────────────────────────────────────────────────────
   apply:
     name: Apply / ${{ inputs.tier }}
@@ -374,11 +363,6 @@ jobs:
       needs.plan.outputs.has_changes == 'true'
     runs-on: ubuntu-latest
     environment: ${{ inputs.tier }}-${{ inputs.environment }}
-    env:
-      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      ARM_USE_OIDC: "true"
     outputs:
       apply_summary: ${{ steps.summary.outputs.summary }}
     steps:
@@ -390,20 +374,45 @@ jobs:
         with:
           terraform_version: ${{ inputs.tf_version }}
 
+      - name: Start LocalStack
+        run: |
+          docker run -d \
+            --name localstack \
+            -p 4566:4566 \
+            localstack/localstack
+          echo "Waiting for LocalStack (up to 2 min)..."
+          for i in $(seq 1 40); do
+            if curl -sf http://localhost:4566/_localstack/health > /dev/null 2>&1; then
+              echo "LocalStack ready after $((i * 3))s"
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "::error::LocalStack did not become ready within 2 minutes"
+          exit 1
+
+      - name: Write LocalStack provider override
+        working-directory: ${{ inputs.working_directory }}
+        run: |
+          cat > localstack.override.tf << 'EOF'
+          provider "azurerm" {
+            features {}
+            use_oidc                   = false
+            subscription_id            = "00000000-0000-0000-0000-000000000000"
+            metadata_host              = "localhost.localstack.cloud:4566"
+            skip_provider_registration = true
+          }
+          EOF
+
       - name: Download plan artifact
-        uses: actions/download-artifact@fa0a91b85d4f404e444306234780b10a6d93a55  # v4.1.8
+        uses: actions/download-artifact@fa0a91b85d4f404e444306234780b10a6d93a55c  # v4.1.8
         with:
           name: tfplan-${{ inputs.tier }}-${{ inputs.environment }}-${{ github.sha }}
           path: ${{ inputs.working_directory }}
 
       - name: Terraform Init
         working-directory: ${{ inputs.working_directory }}
-        run: |
-          terraform init \
-            -backend-config="resource_group_name=${{ inputs.state_resource_group }}" \
-            -backend-config="storage_account_name=${{ inputs.state_storage_account }}" \
-            -backend-config="container_name=${{ inputs.state_container }}" \
-            -backend-config="key=${{ inputs.state_key }}"
+        run: terraform init
 
       - name: Terraform Apply (immutable — exact plan from plan job)
         working-directory: ${{ inputs.working_directory }}
@@ -436,7 +445,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
 
       - name: Download plan artifact
-        uses: actions/download-artifact@fa0a91b85d4f404e444306234780b10a6d93a55  # v4.1.8
+        uses: actions/download-artifact@fa0a91b85d4f404e444306234780b10a6d93a55c  # v4.1.8
         with:
           name: tfplan-${{ inputs.tier }}-${{ inputs.environment }}-${{ github.sha }}
           path: /tmp/tfplan

@@ -1,12 +1,19 @@
 locals {
   prefix = "${var.environment}${var.bu_code}${var.product_name}"
   tags = {
-    environment  = var.environment
-    bu           = var.bu_code
-    product      = var.product_name
-    managed_by   = "terraform"
-    tier         = "core"
+    environment = var.environment
+    bu          = var.bu_code
+    product     = var.product_name
+    managed_by  = "terraform"
+    tier        = "core"
   }
+}
+
+# PoC smoke resource — demonstrates the plan → apply → release flow without
+# real Azure infrastructure. Replace with actual azurerm resources when wiring
+# up to a real subscription.
+resource "terraform_data" "smoke" {
+  input = local.prefix
 }
 
 # ── Networking ────────────────────────────────────────────────────────────────
@@ -18,21 +25,12 @@ locals {
 #   lifecycle { prevent_destroy = true }
 # }
 #
-# resource "azurerm_virtual_network" "main" {
-#   name                = "${local.prefix}vnet01"
-#   resource_group_name = azurerm_resource_group.net.name
-#   location            = var.location
-#   address_space       = var.address_space
-#   tags                = local.tags
-# }
-#
-# resource "azurerm_subnet" "pe" { ... }       # private endpoints
-# resource "azurerm_subnet" "compute" { ... }  # AKS / App Service
-# resource "azurerm_subnet" "agw" { ... }      # Application Gateway
-#
+# resource "azurerm_virtual_network" "main" { ... }
+# resource "azurerm_subnet" "pe" { ... }
+# resource "azurerm_subnet" "compute" { ... }
+# resource "azurerm_subnet" "agw" { ... }
 # resource "azurerm_network_security_group" "pe" { ... }
 # resource "azurerm_network_security_group" "compute" { ... }
-#
 # module "core_nsg_diagnostic" { ... }
 # module "flow_logs" { ... }
 
@@ -47,15 +45,7 @@ locals {
 #   tags                = local.tags
 # }
 #
-# resource "azurerm_monitor_action_group" "main" {
-#   name                = "${local.prefix}agrp01"
-#   resource_group_name = azurerm_resource_group.net.name
-#   short_name          = "alerts"
-#   email_receiver {
-#     name          = "ops"
-#     email_address = var.alert_email
-#   }
-# }
+# resource "azurerm_monitor_action_group" "main" { ... }
 
 # ── Identity ──────────────────────────────────────────────────────────────────
 # UAMIs live in L1 Core so their principal_id is known before any compute

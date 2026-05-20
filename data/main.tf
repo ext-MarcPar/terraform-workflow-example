@@ -1,8 +1,4 @@
 locals {
-  # Pull upstream outputs once here; pass as variables into per-project sub-modules.
-  # Sub-modules never access data.terraform_remote_state directly.
-  core = data.terraform_remote_state.core.outputs
-
   tags = {
     environment = var.environment
     managed_by  = "terraform"
@@ -10,33 +6,26 @@ locals {
   }
 }
 
-# ── Tier-shared resources (deploy first) ─────────────────────────────────────
-# Resources every project in this tier consumes: Key Vault, ACR, PG server.
-# These are NOT published Terraform modules — this is code organisation only.
+# PoC smoke resource. Replace with actual azurerm resources when wiring up
+# to a real subscription. Upstream core outputs should be passed via
+# data "terraform_remote_state" "core" once the azurerm backend is active.
+resource "terraform_data" "smoke" {
+  input = var.environment
+}
+
+# ── Tier-shared resources ─────────────────────────────────────────────────────
+#
+# When wired to real Azure, uncomment remote.tf and use local.core:
+#   locals { core = data.terraform_remote_state.core.outputs }
 #
 # module "shared" {
 #   source    = "./shared"
 #   location  = var.location
 #   tags      = local.tags
-#
-#   # Pass upstream outputs as variables — shared/ never reads remote state.
-#   pe_subnet_id              = local.core.pe_subnet_id
-#   resource_group_name       = local.core.resource_group_name
-#   laws_id                   = local.core.laws_id
+#   pe_subnet_id               = local.core.pe_subnet_id
+#   resource_group_name        = local.core.resource_group_name
+#   laws_id                    = local.core.laws_id
 #   workload_uami_principal_id = local.core.workload_uami_principal_id
-# }
-
-# ── Per-project sub-modules ───────────────────────────────────────────────────
-# Each sub-module receives everything it needs as input variables from here.
-#
-# module "project1" {
-#   source    = "./project1"
-#   location  = var.location
-#   tags      = local.tags
-#
-#   pe_subnet_id = local.core.pe_subnet_id
-#   key_vault_id = module.shared.key_vault_id   # from shared, not from remote state
-#   pg_server_id = module.shared.pg_server_id
 # }
 
 # ── Key Vault ─────────────────────────────────────────────────────────────────
@@ -45,7 +34,6 @@ locals {
 #   name                          = "..."
 #   resource_group_name           = local.core.resource_group_name
 #   location                      = var.location
-#   tenant_id                     = data.azurerm_client_config.current.tenant_id
 #   sku_name                      = "standard"
 #   purge_protection_enabled      = true
 #   soft_delete_retention_days    = 90

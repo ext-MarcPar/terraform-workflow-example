@@ -1,23 +1,39 @@
-variable "location"    { type = string }
-variable "environment" { type = string }
+variable "location" {
+  type    = string
+  default = "eastus2"
+}
+
+variable "environment" {
+  type    = string
+  default = "dev"
+}
 
 locals {
-  core = data.terraform_remote_state.core.outputs
-  data = data.terraform_remote_state.data.outputs
   tags = { environment = var.environment, managed_by = "terraform", tier = "compute" }
+}
+
+# PoC smoke resource. Replace with actual azurerm resources when wiring up
+# to a real subscription. Upstream core + data outputs should be passed via
+# data "terraform_remote_state" in remote.tf once the azurerm backend is active.
+resource "terraform_data" "smoke" {
+  input = var.environment
 }
 
 # ── AKS Cluster ───────────────────────────────────────────────────────────────
 #
+# When wired to real Azure, uncomment remote.tf and use:
+#   locals {
+#     core = data.terraform_remote_state.core.outputs
+#     data = data.terraform_remote_state.data.outputs
+#   }
+#
 # resource "azurerm_kubernetes_cluster" "main" {
-#   ...
 #   identity {
 #     type         = "UserAssigned"
 #     identity_ids = [local.core.workload_uami_id]
 #   }
 #   default_node_pool {
 #     vnet_subnet_id = local.core.compute_subnet_id
-#     ...
 #   }
 # }
 #

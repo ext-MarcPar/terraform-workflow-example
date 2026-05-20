@@ -3,15 +3,8 @@ terraform {
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "4.20.0"
+      version = "~> 4.20"
     }
   }
-  backend "azurerm" {
-    use_oidc = true
-  }
-}
-
-provider "azurerm" {
-  use_oidc = true
-  features {}
+  backend "local" {}
 }

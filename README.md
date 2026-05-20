@@ -6,7 +6,7 @@ A reference implementation of the [Platform Deployment Pattern](../Azure-archite
 
 - **5-layer deployment model** — `core → data → compute → workloads → edge`, each with isolated state
 - **Immutable apply** — the exact binary plan from the `plan` job is applied; no drift between review and execution
-- **OIDC-only auth** — no stored credentials; Azure SPs authenticated via GitHub's federated identity tokens
+- **LocalStack PoC mode** — CI runs against the free `localstack/localstack` Community image on the runner; no auth token, no Azure subscription or credentials needed
 - **Per-tier blast radius** — a failure or misconfiguration in one layer cannot affect others
 - **Cost visibility on PRs** — Infracost shows monthly cost impact before any reviewer approves
 - **Automated release trail** — every successful apply updates `CHANGELOG.md` and creates a GitHub Release
@@ -144,22 +144,26 @@ This is a separate workflow rather than a step inside the apply workflow because
 
 ## Security model
 
-### Authentication — OIDC only
+### Authentication — LocalStack Community (PoC)
 
-No client secrets or long-lived credentials are stored anywhere. GitHub issues a short-lived OIDC ID token per workflow run. Azure validates the token against the federated credential registered on the Service Principal and returns a scoped access token.
+In this PoC repo, all Terraform runs target the free `localstack/localstack` Community container started on the GitHub Actions runner. No auth token, Azure subscription, OIDC federation, or Service Principals are needed.
 
 ```
 GitHub Actions run
-    │  issues OIDC ID token
-    │  (subject: repo:org/repo:environment:core-prd)
+    │  docker run localstack/localstack  (free, no token)
+    │  generates localstack.override.tf (azurerm provider → localhost:4566)
     ▼
-Azure Entra ID
-    │  validates against federated credential on sp-ct-prd
-    │  returns access token (1-hour TTL, scoped to CT prd subscription)
+LocalStack Community
+    │  intercepts provider API calls (AWS-focused, Azure is limited in free tier)
+    │  proves pipeline wiring: init → plan → apply → release all run clean
     ▼
-Terraform azurerm provider / backend
-    │  uses ARM_USE_OIDC=true + ARM_CLIENT_ID + ARM_TENANT_ID + ARM_SUBSCRIPTION_ID
+Terraform azurerm provider
+    │  uses metadata_host = "localhost.localstack.cloud:4566"
+    │  subscription_id   = "00000000-0000-0000-0000-000000000000" (dummy)
+    │  no resources use the provider yet — provider is downloaded but not called
 ```
+
+When copying this template to a real product repo, replace LocalStack with OIDC-based Azure authentication — see [Wiring to real Azure](#wiring-to-real-azure-when-copying-to-a-product-repo) below.
 
 ### Four permission layers
 
@@ -196,93 +200,19 @@ Prevents two runs from colliding on the Azure blob state lock for the same tier 
 
 ---
 
-## Setup
+## Setup (PoC — LocalStack)
 
-### 1 — Azure: create Service Principals
+No Azure credentials, subscription IDs, state storage, or LocalStack auth tokens are needed.
 
-Create one SP per BU per environment plus one Reader SP for plan runs:
+### 1 — (Optional) Add the Infracost secret
 
-| SP name | Azure RBAC scope | Role | Used for |
-|---|---|---|---|
-| `sp-<bu>-plan` | All product subscriptions | Reader | PR plan runs (all tiers) |
-| `sp-<bu>-dev` | Dev subscription | Owner (or custom deployer) | Dev apply runs |
-| `sp-<bu>-uat` | UAT subscription | Owner | UAT apply runs |
-| `sp-<bu>-prd` | Prd subscription | Owner | Prd apply runs |
+If you want cost analysis on PRs, add `INFRACOST_API_KEY` in **Settings → Secrets and variables → Actions → Secrets**. Otherwise the cost-analysis job is skipped automatically.
 
-Register federated credentials on each SP:
-
-```bash
-# Plan SP — one credential per repo, using pull_request subject
-az ad app federated-credential create \
-  --id <plan-sp-app-id> \
-  --parameters '{
-    "name": "tf-example01-plan",
-    "issuer": "https://token.actions.githubusercontent.com",
-    "subject": "repo:onterris/terraform-ct-example01:pull_request",
-    "audiences": ["api://AzureADTokenExchange"]
-  }'
-
-# Apply SP (prd) — one credential per environment per repo
-az ad app federated-credential create \
-  --id <prd-sp-app-id> \
-  --parameters '{
-    "name": "tf-example01-core-prd",
-    "issuer": "https://token.actions.githubusercontent.com",
-    "subject": "repo:onterris/terraform-ct-example01:environment:core-prd",
-    "audiences": ["api://AzureADTokenExchange"]
-  }'
-# Repeat for each tier+environment combination (data-prd, compute-prd, etc.)
-```
-
-### 2 — Terraform state storage
-
-Provision the state storage account in the platform subscription:
-
-```bash
-az group create -n pl-tfstate-prd-rg -l eastus2
-az storage account create \
-  -n onterristfstateprd \
-  -g pl-tfstate-prd-rg \
-  --sku Standard_LRS \
-  --min-tls-version TLS1_2 \
-  --https-only true \
-  --allow-blob-public-access false
-az storage container create -n tfstate --account-name onterristfstateprd
-```
-
-Grant the plan SP and apply SPs `Storage Blob Data Contributor` on the container (or scope to specific blob path prefixes for tighter RBAC).
-
-### 3 — GitHub: repository variables
-
-Set these in **Settings → Secrets and variables → Actions → Variables**:
-
-| Variable | Example value | Description |
-|---|---|---|
-| `BU_CODE` | `ct` | 2-character BU code |
-| `PRODUCT_NAME` | `example01` | Product name + instance suffix |
-| `AZURE_TENANT_ID` | `xxxxxxxx-...` | Entra ID tenant ID |
-| `AZURE_CLIENT_ID_PLAN` | `xxxxxxxx-...` | Reader SP client ID |
-| `AZURE_SUBSCRIPTION_ID_DEV` | `xxxxxxxx-...` | Dev subscription ID (plan workflow uses this) |
-| `TF_STATE_RESOURCE_GROUP` | `pl-tfstate-prd-rg` | State storage RG |
-| `TF_STATE_STORAGE_ACCOUNT` | `onterristfstateprd` | State storage account name |
-| `TF_STATE_CONTAINER` | `tfstate` | State blob container |
-
-Set this in **Secrets**:
-
-| Secret | Description |
-|---|---|
-| `INFRACOST_API_KEY` | From [infracost.io/docs](https://www.infracost.io/docs/#2-get-api-key) — remove if not using cost analysis |
-
-### 4 — GitHub: Environments
+### 3 — GitHub: Environments
 
 Create one environment per tier per environment in **Settings → Environments**. Naming convention: `<tier>-<environment>` (e.g. `core-dev`, `data-uat`, `compute-prd`).
 
-For each environment, set:
-
-| Variable | Value |
-|---|---|
-| `AZURE_CLIENT_ID_APPLY` | Apply SP client ID for this environment |
-| `AZURE_SUBSCRIPTION_ID` | Product subscription ID for this environment |
+No environment variables are required — the `LOCALSTACK_AUTH_TOKEN` secret is read from the repository context.
 
 Configure required reviewers:
 
@@ -292,25 +222,7 @@ Configure required reviewers:
 | `*-uat` | 1 × product team |
 | `*-prd` | 2 × product team + platform team |
 
-### 5 — Update `remote.tf` locals
-
-In each layer's `remote.tf`, update the `state_backend` locals to match your actual state storage account, and update `bu_code` and `product_name` to match your `BU_CODE` and `PRODUCT_NAME` repo variables:
-
-```hcl
-# data/remote.tf
-locals {
-  state_backend = {
-    resource_group_name  = "pl-tfstate-prd-rg"      # ← your state RG
-    storage_account_name = "onterristfstateprd"      # ← your state SA
-    container_name       = "tfstate"
-    use_oidc             = true
-  }
-  bu_code      = "ct"         # ← your BU_CODE
-  product_name = "example01"  # ← your PRODUCT_NAME
-}
-```
-
-### 6 — Branch protection
+### 4 — Branch protection
 
 Enable these rules on `main` in **Settings → Branches**:
 
@@ -354,7 +266,25 @@ find . -path './*/*/**.tf' | xargs grep -l 'terraform_remote_state' && exit 1 ||
 
 **Disable security checks** — set `run_security_checks: false` in `plan.yml`. Not recommended for production.
 
-**Add a second product to the same BU** — create a new repo (`terraform-<bu>-<product2>01`), copy this template, update the `PRODUCT_NAME` variable and `remote.tf` locals. The same BU apply SPs (`sp-<bu>-prd`, etc.) are reused; add a new federated credential per tier per environment for the new repo.
+**Add a second product to the same BU** — create a new repo (`terraform-<bu>-<product2>01`), copy this template, update the `remote.tf` locals. The same BU apply SPs (`sp-<bu>-prd`, etc.) are reused; add a new federated credential per tier per environment for the new repo.
+
+---
+
+## Wiring to real Azure (when copying to a product repo)
+
+This PoC runs against LocalStack. When you copy this template to a real product repo, make these changes:
+
+1. **`versions.tf` in each layer** — change `backend "local" {}` to `backend "azurerm" { use_oidc = true }`; remove the azurerm `required_providers` block if you prefer to keep versions in the provider block instead
+
+2. **`remote.tf` in each layer** — uncomment the `state_backend` locals and `data "terraform_remote_state"` blocks; update `bu_code` and `product_name` to match your repo variables
+
+3. **`reusable-az-terraform.yml`** — remove the "Start LocalStack" and "Write LocalStack provider override" steps; add back `state_resource_group`, `state_storage_account`, `state_container`, `state_key` inputs; restore `AZURE_CLIENT_ID` / `AZURE_TENANT_ID` / `AZURE_SUBSCRIPTION_ID` secrets; add `ARM_USE_OIDC: "true"` + `ARM_CLIENT_ID` + `ARM_TENANT_ID` + `ARM_SUBSCRIPTION_ID` to the plan and apply job env blocks
+
+4. **Create Azure Service Principals** — one Reader SP for plan runs (two federated credentials: `pull_request` and `ref:refs/heads/main` subjects) and one Apply SP per environment (federated credential per tier per environment using `environment:<tier>-<env>` subject)
+
+5. **Add GitHub repo secrets/variables** — `AZURE_TENANT_ID`, `AZURE_CLIENT_ID_PLAN`, `AZURE_SUBSCRIPTION_ID_DEV/UAT/PRD`, `TF_STATE_RESOURCE_GROUP`, `TF_STATE_STORAGE_ACCOUNT`, `TF_STATE_CONTAINER`
+
+6. **Add `AZURE_CLIENT_ID_APPLY` to each GitHub Environment** — the apply job reads this directly from the environment context (callers cannot pass environment-level variables as secrets)
 
 ---
 
@@ -363,14 +293,11 @@ find . -path './*/*/**.tf' | xargs grep -l 'terraform_remote_state' && exit 1 ||
 **`Error: No such file or directory: tfplan.binary`**
 The plan job did not upload the artifact, or the artifact name in the apply job doesn't match. Check that `github.sha` is the same between the plan and apply jobs (it will be — they run in the same workflow run on push to main).
 
-**`Error: Backend configuration changed`**
-The `-backend-config` flags don't match the backend block. Ensure `versions.tf` has `backend "azurerm" { use_oidc = true }` with no other attributes — all config is injected by CI.
-
-**`AADSTS70011: The provided request must include a 'scope' input parameter`**
-The federated credential subject doesn't match the workflow context. Verify the `subject` in the Azure federated credential matches the GitHub environment name exactly (e.g. `repo:org/repo:environment:core-prd`).
+**`LocalStack did not become ready within 2 minutes`**
+The `localstack/localstack` image failed to start or the health endpoint isn't responding. Check the "Start LocalStack" step logs for docker errors. The image is public and requires no auth to pull.
 
 **`Error acquiring the state lock`**
-Another run is already applying the same tier + environment. The concurrency group prevents new runs from starting, but if a run was cancelled mid-apply the lock may be left in Azure. Use `terraform force-unlock <lock-id>` to release it manually.
+With `backend "local"` each job uses ephemeral state — this shouldn't occur in PoC mode. If it happens after wiring to `backend "azurerm"`, use `terraform force-unlock <lock-id>`.
 
 **Cost analysis shows `$0` for everything**
 Infracost requires a valid API key and the resource types to be supported. Check the Infracost output in the workflow logs. Some Azure resource types have limited Infracost support.
