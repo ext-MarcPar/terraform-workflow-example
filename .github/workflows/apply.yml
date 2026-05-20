@@ -23,7 +23,7 @@ name: Terraform Apply
 # Reviewers see the PR plan comments (posted by plan.yml) before approving.
 # Approving in GitHub Environments releases the job to continue.
 #
-# No secrets are required — LocalStack Community pulls without authentication.
+# No secrets are required for the PoC — backend is local, no Azure credentials needed.
 
 on:
   push:

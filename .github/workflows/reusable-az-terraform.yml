@@ -1,17 +1,16 @@
-name: Reusable — Azure Terraform (LocalStack PoC)
+name: Reusable — Azure Terraform (PoC)
 
 # Called by plan.yml (on pull_request) and apply.yml (on push to main).
 #
-# PoC mode: all Terraform runs target the free LocalStack Community container
-# started on the GitHub Actions runner — no auth token, no Azure credentials.
+# PoC mode: uses backend "local" and terraform_data smoke resources.
+# No Azure credentials, no state storage, no external services required.
 #
 # When copying this template to a product repo and wiring to real Azure:
 #   1. Add state backend inputs (state_resource_group, state_storage_account,
 #      state_container, state_key) and pass -backend-config to terraform init
 #   2. Add AZURE_CLIENT_ID / AZURE_TENANT_ID / AZURE_SUBSCRIPTION_ID secrets
 #      and set ARM_USE_OIDC: "true" on plan/apply jobs
-#   3. Remove the Start LocalStack and Write LocalStack provider override steps
-#   4. Change backend "local" {} to backend "azurerm" { use_oidc = true }
+#   3. Change backend "local" {} to backend "azurerm" { use_oidc = true }
 #
 # ── OPTIONAL SECRETS ─────────────────────────────────────────────────────────
 #   INFRACOST_API_KEY       From https://www.infracost.io/docs/#2-get-api-key
@@ -98,7 +97,7 @@ jobs:
           soft_fail: true   # informational only — findings posted as annotations, merge not blocked
 
   # ────────────────────────────────────────────────────────────────────────────
-  # PLAN — start LocalStack, init, plan, upload artifacts
+  # PLAN — terraform init + plan, upload artifacts
   # ────────────────────────────────────────────────────────────────────────────
   plan:
     name: Plan / ${{ inputs.tier }}
@@ -115,36 +114,6 @@ jobs:
         uses: hashicorp/setup-terraform@b9cd54531c595e89e64e7c8d7e2fca24da5f5a7e  # v3.2.0
         with:
           terraform_version: ${{ inputs.tf_version }}
-
-      - name: Start LocalStack
-        run: |
-          docker run -d \
-            --name localstack \
-            -p 4566:4566 \
-            localstack/localstack
-          echo "Waiting for LocalStack (up to 2 min)..."
-          for i in $(seq 1 40); do
-            if curl -sf http://localhost:4566/_localstack/health > /dev/null 2>&1; then
-              echo "LocalStack ready after $((i * 3))s"
-              exit 0
-            fi
-            sleep 3
-          done
-          echo "::error::LocalStack did not become ready within 2 minutes"
-          exit 1
-
-      - name: Write LocalStack provider override
-        working-directory: ${{ inputs.working_directory }}
-        run: |
-          cat > localstack.override.tf << 'EOF'
-          provider "azurerm" {
-            features {}
-            use_oidc                   = false
-            subscription_id            = "00000000-0000-0000-0000-000000000000"
-            metadata_host              = "localhost.localstack.cloud:4566"
-            skip_provider_registration = true
-          }
-          EOF
 
       - name: Terraform Init
         working-directory: ${{ inputs.working_directory }}
@@ -352,7 +321,6 @@ jobs:
   # reviewers — approvers see the PR plan comments before approving.
   #
   # The apply uses the exact binary plan file generated in the plan job above.
-  # LocalStack is restarted on this runner since each job runs on a fresh VM.
   # ────────────────────────────────────────────────────────────────────────────
   apply:
     name: Apply / ${{ inputs.tier }}
@@ -373,36 +341,6 @@ jobs:
         uses: hashicorp/setup-terraform@b9cd54531c595e89e64e7c8d7e2fca24da5f5a7e  # v3.2.0
         with:
           terraform_version: ${{ inputs.tf_version }}
-
-      - name: Start LocalStack
-        run: |
-          docker run -d \
-            --name localstack \
-            -p 4566:4566 \
-            localstack/localstack
-          echo "Waiting for LocalStack (up to 2 min)..."
-          for i in $(seq 1 40); do
-            if curl -sf http://localhost:4566/_localstack/health > /dev/null 2>&1; then
-              echo "LocalStack ready after $((i * 3))s"
-              exit 0
-            fi
-            sleep 3
-          done
-          echo "::error::LocalStack did not become ready within 2 minutes"
-          exit 1
-
-      - name: Write LocalStack provider override
-        working-directory: ${{ inputs.working_directory }}
-        run: |
-          cat > localstack.override.tf << 'EOF'
-          provider "azurerm" {
-            features {}
-            use_oidc                   = false
-            subscription_id            = "00000000-0000-0000-0000-000000000000"
-            metadata_host              = "localhost.localstack.cloud:4566"
-            skip_provider_registration = true
-          }
-          EOF
 
       - name: Download plan artifact
         uses: actions/download-artifact@fa0a91b85d4f404e444306234780b10a6d93a55c  # v4.1.8

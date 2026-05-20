@@ -1,8 +1,7 @@
 name: Terraform Plan
 
 # Runs on every PR targeting main. Plans all 5 layers sequentially against
-# the dev environment using LocalStack Azure on the GitHub Actions runner.
-# Posts per-tier plan + cost comments on the PR.
+# the dev environment. Posts per-tier plan + cost comments on the PR.
 #
 # ── OPTIONAL REPOSITORY SECRET ────────────────────────────────────────────────
 #   INFRACOST_API_KEY       From https://www.infracost.io/docs/#2-get-api-key
