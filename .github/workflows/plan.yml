@@ -10,6 +10,13 @@ name: Terraform Plan
 on:
   pull_request:
     branches: [main]
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment to plan against"
+        required: false
+        default: dev
 
 permissions:
   contents: read
