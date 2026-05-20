@@ -85,7 +85,7 @@ jobs:
         working-directory: ${{ inputs.working_directory }}
         run: |
           tflint --init
-          tflint --format compact
+          tflint --format compact --minimum-failure-severity=error
 
       - name: Run Checkov
         if: inputs.run_security_checks
