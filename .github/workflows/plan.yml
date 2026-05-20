@@ -3,8 +3,7 @@ name: Terraform Plan
 # Runs on every PR targeting main. Plans all 5 layers sequentially against
 # the dev environment. Posts per-tier plan + cost comments on the PR.
 #
-# ── OPTIONAL REPOSITORY SECRET ────────────────────────────────────────────────
-#   INFRACOST_API_KEY       From https://www.infracost.io/docs/#2-get-api-key
+# No secrets required — OpenInfraQuote runs fully offline, no API key needed.
 
 on:
   pull_request:
@@ -30,8 +29,6 @@ jobs:
       tier: core
       environment: dev
       working_directory: core
-    secrets:
-      INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
 
   # ── L2 Data ───────────────────────────────────────────────────────────────
   data:
@@ -42,8 +39,6 @@ jobs:
       tier: data
       environment: dev
       working_directory: data
-    secrets:
-      INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
 
   # ── L3 Compute ────────────────────────────────────────────────────────────
   compute:
@@ -54,8 +49,6 @@ jobs:
       tier: compute
       environment: dev
       working_directory: compute
-    secrets:
-      INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
 
   # ── L4 Workloads (optional) ───────────────────────────────────────────────
   # Remove this job if the product has no Terraform-managed workload layer.
@@ -67,8 +60,6 @@ jobs:
       tier: workloads
       environment: dev
       working_directory: workloads
-    secrets:
-      INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
 
   # ── L5 Edge (optional) ────────────────────────────────────────────────────
   # L4 and L5 are peer-optional off L3. Edge does not depend on workloads
@@ -82,5 +73,3 @@ jobs:
       tier: edge
       environment: dev
       working_directory: edge
-    secrets:
-      INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}

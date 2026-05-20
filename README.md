@@ -204,15 +204,11 @@ Prevents two runs from colliding on the Azure blob state lock for the same tier 
 
 No Azure credentials, subscription IDs, state storage, or LocalStack auth tokens are needed.
 
-### 1 — (Optional) Add the Infracost secret
-
-If you want cost analysis on PRs, add `INFRACOST_API_KEY` in **Settings → Secrets and variables → Actions → Secrets**. Otherwise the cost-analysis job is skipped automatically.
-
-### 3 — GitHub: Environments
+### 1 — GitHub: Environments
 
 Create one environment per tier per environment in **Settings → Environments**. Naming convention: `<tier>-<environment>` (e.g. `core-dev`, `data-uat`, `compute-prd`).
 
-No environment variables are required — the `LOCALSTACK_AUTH_TOKEN` secret is read from the repository context.
+No secrets or environment variables are required for the PoC.
 
 Configure required reviewers:
 
@@ -262,7 +258,7 @@ find . -path './*/*/**.tf' | xargs grep -l 'terraform_remote_state' && exit 1 ||
 
 **Change the environment count** — to add a `staging` environment between UAT and PRD, duplicate the UAT job block in `apply.yml`, change the `environment:` values, and add a corresponding GitHub Environment.
 
-**Disable cost analysis** — set `run_cost_analysis: false` in the `plan.yml` `with:` block, or remove the `INFRACOST_API_KEY` secret. The `cost-analysis` and `pr-comment` cost section will be skipped automatically.
+**Disable cost analysis** — set `run_cost_analysis: false` in the `plan.yml` `with:` block. The `cost-analysis` job and the cost section in PR comments will be skipped automatically.
 
 **Disable security checks** — set `run_security_checks: false` in `plan.yml`. Not recommended for production.
 
