@@ -1,19 +1,23 @@
 name: Terraform Plan
 
 # Runs on every PR targeting main. Plans all 5 layers sequentially against
-# the dev environment state. Posts per-tier plan + cost comments on the PR.
+# the dev environment. Posts per-tier plan + cost comments on the PR.
 #
-# Layers run sequentially because each layer's remote.tf reads the previous
-# layer's state outputs. If all upstream state already exists, you can
-# remove the needs: chain and let layers plan in parallel.
+# No secrets required — OpenInfraQuote runs fully offline, no API key needed.
 
 on:
   pull_request:
     branches: [main]
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment to plan against"
+        required: false
+        default: dev
 
 permissions:
-  contents: read
-  id-token: write
+  contents: write
   pull-requests: write
 
 jobs:
@@ -25,15 +29,6 @@ jobs:
       tier: core
       environment: dev
       working_directory: core
-      state_resource_group: ${{ vars.TF_STATE_RESOURCE_GROUP }}
-      state_storage_account: ${{ vars.TF_STATE_STORAGE_ACCOUNT }}
-      state_container: ${{ vars.TF_STATE_CONTAINER }}
-      state_key: ${{ vars.BU_CODE }}/${{ vars.PRODUCT_NAME }}/core/terraform.tfstate
-    secrets:
-      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID_PLAN }}
-      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
-      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID_DEV }}
-      INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
 
   # ── L2 Data ───────────────────────────────────────────────────────────────
   data:
@@ -44,15 +39,6 @@ jobs:
       tier: data
       environment: dev
       working_directory: data
-      state_resource_group: ${{ vars.TF_STATE_RESOURCE_GROUP }}
-      state_storage_account: ${{ vars.TF_STATE_STORAGE_ACCOUNT }}
-      state_container: ${{ vars.TF_STATE_CONTAINER }}
-      state_key: ${{ vars.BU_CODE }}/${{ vars.PRODUCT_NAME }}/data/terraform.tfstate
-    secrets:
-      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID_PLAN }}
-      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
-      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID_DEV }}
-      INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
 
   # ── L3 Compute ────────────────────────────────────────────────────────────
   compute:
@@ -63,15 +49,6 @@ jobs:
       tier: compute
       environment: dev
       working_directory: compute
-      state_resource_group: ${{ vars.TF_STATE_RESOURCE_GROUP }}
-      state_storage_account: ${{ vars.TF_STATE_STORAGE_ACCOUNT }}
-      state_container: ${{ vars.TF_STATE_CONTAINER }}
-      state_key: ${{ vars.BU_CODE }}/${{ vars.PRODUCT_NAME }}/compute/terraform.tfstate
-    secrets:
-      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID_PLAN }}
-      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
-      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID_DEV }}
-      INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
 
   # ── L4 Workloads (optional) ───────────────────────────────────────────────
   # Remove this job if the product has no Terraform-managed workload layer.
@@ -83,15 +60,6 @@ jobs:
       tier: workloads
       environment: dev
       working_directory: workloads
-      state_resource_group: ${{ vars.TF_STATE_RESOURCE_GROUP }}
-      state_storage_account: ${{ vars.TF_STATE_STORAGE_ACCOUNT }}
-      state_container: ${{ vars.TF_STATE_CONTAINER }}
-      state_key: ${{ vars.BU_CODE }}/${{ vars.PRODUCT_NAME }}/workloads/terraform.tfstate
-    secrets:
-      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID_PLAN }}
-      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
-      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID_DEV }}
-      INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
 
   # ── L5 Edge (optional) ────────────────────────────────────────────────────
   # L4 and L5 are peer-optional off L3. Edge does not depend on workloads
@@ -105,12 +73,3 @@ jobs:
       tier: edge
       environment: dev
       working_directory: edge
-      state_resource_group: ${{ vars.TF_STATE_RESOURCE_GROUP }}
-      state_storage_account: ${{ vars.TF_STATE_STORAGE_ACCOUNT }}
-      state_container: ${{ vars.TF_STATE_CONTAINER }}
-      state_key: ${{ vars.BU_CODE }}/${{ vars.PRODUCT_NAME }}/edge/terraform.tfstate
-    secrets:
-      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID_PLAN }}
-      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
-      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID_DEV }}
-      INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}

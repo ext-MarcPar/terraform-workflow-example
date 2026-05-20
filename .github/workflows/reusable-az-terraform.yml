@@ -1,24 +1,18 @@
-name: Reusable — Azure Terraform
+name: Reusable — Azure Terraform (PoC)
 
 # Called by plan.yml (on pull_request) and apply.yml (on push to main).
-# The same workflow handles both phases; jobs use `if:` conditions to
-# run only the appropriate steps for each trigger.
 #
-# ── REQUIRED GITHUB REPOSITORY VARIABLES ─────────────────────────────────────
-#   BU_CODE                   2-char BU code (e.g. ct, on)
-#   PRODUCT_NAME              product + instance suffix (e.g. example01)
-#   AZURE_TENANT_ID           Entra ID tenant ID
-#   AZURE_CLIENT_ID_PLAN      Reader SP client ID (PR plan runs)
-#   TF_STATE_RESOURCE_GROUP   RG of the state storage account
-#   TF_STATE_STORAGE_ACCOUNT  State storage account name
-#   TF_STATE_CONTAINER        State blob container name
+# PoC mode: uses backend "local" and terraform_data smoke resources.
+# No Azure credentials, no state storage, no external services required.
 #
-# ── REQUIRED GITHUB ENVIRONMENT VARIABLES (per environment) ──────────────────
-#   AZURE_CLIENT_ID_APPLY     Apply SP client ID (Owner on product subscription)
-#   AZURE_SUBSCRIPTION_ID     Product subscription ID
+# When copying this template to a product repo and wiring to real Azure:
+#   1. Add state backend inputs (state_resource_group, state_storage_account,
+#      state_container, state_key) and pass -backend-config to terraform init
+#   2. Add AZURE_CLIENT_ID / AZURE_TENANT_ID / AZURE_SUBSCRIPTION_ID secrets
+#      and set ARM_USE_OIDC: "true" on plan/apply jobs
+#   3. Change backend "local" {} to backend "azurerm" { use_oidc = true }
 #
-# ── REQUIRED SECRETS ─────────────────────────────────────────────────────────
-#   INFRACOST_API_KEY          From https://www.infracost.io/docs/#2-get-api-key
+# No secrets are required for cost analysis — OpenInfraQuote runs fully offline.
 
 on:
   workflow_call:
@@ -35,22 +29,6 @@ on:
         description: "Terraform root directory for this tier."
         type: string
         required: true
-      state_resource_group:
-        description: "Resource group of the state storage account."
-        type: string
-        required: true
-      state_storage_account:
-        description: "Azure Storage Account name for Terraform state."
-        type: string
-        required: true
-      state_container:
-        description: "Blob container name for Terraform state."
-        type: string
-        required: true
-      state_key:
-        description: "Blob key (e.g. ct/example01/core/terraform.tfstate)."
-        type: string
-        required: true
       tf_version:
         description: "Terraform version."
         type: string
@@ -62,26 +40,13 @@ on:
         required: false
         default: true
       run_cost_analysis:
-        description: "Run Infracost on pull requests."
+        description: "Run OpenInfraQuote cost estimate on pull requests."
         type: boolean
         required: false
         default: true
-    secrets:
-      AZURE_CLIENT_ID:
-        description: >
-          Plan runs: pass vars.AZURE_CLIENT_ID_PLAN (Reader SP).
-          Apply runs: pass vars.AZURE_CLIENT_ID_APPLY from the GitHub Environment.
-        required: true
-      AZURE_TENANT_ID:
-        required: true
-      AZURE_SUBSCRIPTION_ID:
-        required: true
-      INFRACOST_API_KEY:
-        required: false
 
-# Prevents concurrent runs on the same tier + environment from racing on the
-# Azure blob state lock. cancel-in-progress: false queues the second run
-# rather than cancelling it — safe for infrastructure changes.
+# Prevents concurrent runs on the same tier + environment from racing on state.
+# cancel-in-progress: false queues the second run rather than cancelling it.
 concurrency:
   group: ${{ github.repository }}-${{ inputs.tier }}-${{ inputs.environment }}
   cancel-in-progress: false
@@ -89,7 +54,7 @@ concurrency:
 jobs:
   # ────────────────────────────────────────────────────────────────────────────
   # VALIDATE — format check, lint, security scan
-  # Runs on both PR and push-to-main. Fails fast before any Azure calls.
+  # Runs on both PR and push-to-main. Fails fast before any plan/apply.
   # ────────────────────────────────────────────────────────────────────────────
   validate:
     name: Validate / ${{ inputs.tier }}
@@ -99,7 +64,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@b9cd54531c595e89e64e7c8d7e2fca24da5f5a7e  # v3.2.0
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd  # v3.1.2
         with:
           terraform_version: ${{ inputs.tf_version }}
 
@@ -116,31 +81,24 @@ jobs:
         working-directory: ${{ inputs.working_directory }}
         run: |
           tflint --init
-          tflint --format compact
+          tflint --format compact --minimum-failure-severity=error
 
       - name: Run Checkov
         if: inputs.run_security_checks
-        uses: bridgecrewio/checkov-action@7547bff18e3ef1f71b12bf425d23e5b22af17c8b  # v12
+        uses: bridgecrewio/checkov-action@4048c972aae68d0b983a48bb3479aab2d877b898  # v12
         with:
           directory: ${{ inputs.working_directory }}
           framework: terraform
           quiet: true
-          soft_fail: false
+          soft_fail: true   # informational only — findings posted as annotations, merge not blocked
 
   # ────────────────────────────────────────────────────────────────────────────
   # PLAN — terraform init + plan, upload artifacts
-  # On PR:        plans against dev state using the Reader SP.
-  # On push/main: plans against the target env using the Apply SP.
   # ────────────────────────────────────────────────────────────────────────────
   plan:
     name: Plan / ${{ inputs.tier }}
     needs: validate
     runs-on: ubuntu-latest
-    env:
-      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      ARM_USE_OIDC: "true"
     outputs:
       plan_summary: ${{ steps.summary.outputs.summary }}
       has_changes: ${{ steps.summary.outputs.has_changes }}
@@ -149,18 +107,13 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@b9cd54531c595e89e64e7c8d7e2fca24da5f5a7e  # v3.2.0
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd  # v3.1.2
         with:
           terraform_version: ${{ inputs.tf_version }}
 
       - name: Terraform Init
         working-directory: ${{ inputs.working_directory }}
-        run: |
-          terraform init \
-            -backend-config="resource_group_name=${{ inputs.state_resource_group }}" \
-            -backend-config="storage_account_name=${{ inputs.state_storage_account }}" \
-            -backend-config="container_name=${{ inputs.state_container }}" \
-            -backend-config="key=${{ inputs.state_key }}"
+        run: terraform init
 
       - name: Terraform Plan
         working-directory: ${{ inputs.working_directory }}
@@ -187,7 +140,7 @@ jobs:
           fi
 
       - name: Upload plan artifacts
-        uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2d  # v4.5.0
+        uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2b  # v4.5.0
         with:
           # Artifact name encodes tier + environment + SHA for cross-job reference.
           name: tfplan-${{ inputs.tier }}-${{ inputs.environment }}-${{ github.sha }}
@@ -200,7 +153,8 @@ jobs:
           if-no-files-found: error
 
   # ────────────────────────────────────────────────────────────────────────────
-  # COST ANALYSIS — Infracost diff (pull requests only)
+  # COST ANALYSIS — OpenInfraQuote estimate (pull requests only)
+  # Runs fully offline — no API key required.
   # ────────────────────────────────────────────────────────────────────────────
   cost-analysis:
     name: Cost / ${{ inputs.tier }}
@@ -210,49 +164,26 @@ jobs:
       inputs.run_cost_analysis == true &&
       needs.plan.outputs.has_changes == 'true'
     runs-on: ubuntu-latest
-    outputs:
-      cost_comment: ${{ steps.infracost.outputs.cost_comment }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
-
-      - name: Setup Infracost
-        uses: infracost/actions/setup@ba5b5fc24ad1a4ac3e0ab6b06b2edab2a52e7c62  # v3.0.1
-        with:
-          api-key: ${{ secrets.INFRACOST_API_KEY }}
-
       - name: Download plan artifact
-        uses: actions/download-artifact@fa0a91b85d4f404e444306234780b10a6d93a55  # v4.1.8
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16  # v4.1.8
         with:
           name: tfplan-${{ inputs.tier }}-${{ inputs.environment }}-${{ github.sha }}
           path: /tmp/tfplan
 
-      - name: Run Infracost diff
-        id: infracost
-        shell: bash
-        run: |
-          infracost diff \
-            --path=/tmp/tfplan/tfplan.json \
-            --format=json \
-            --out-file=/tmp/infracost.json
-
-          # Generate GitHub-flavoured markdown for the PR comment
-          infracost output \
-            --path=/tmp/infracost.json \
-            --format=github-comment \
-            --out-file=/tmp/infracost-comment.md
-
-          # Expose a one-liner summary as a job output
-          MONTHLY=$(jq -r '.totalMonthlyCost // "N/A"' /tmp/infracost.json)
-          DIFF=$(jq -r '.diffTotalMonthlyCost // "N/A"' /tmp/infracost.json)
-          echo "cost_comment=Monthly ~\$${MONTHLY}/mo (diff \$${DIFF})" >> "$GITHUB_OUTPUT"
+      - name: Run OpenInfraQuote
+        uses: terrateamio/openinfraquote-action@6ce7f258c71e3104b75ca438a731c4f6d45d4593
+        with:
+          plan-path: /tmp/tfplan/tfplan.json
+          comment-on-pr: false
 
       - name: Upload cost report artifact
-        uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2d  # v4.5.0
+        uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2b  # v4.5.0
         with:
-          name: infracost-${{ inputs.tier }}-${{ inputs.environment }}-${{ github.sha }}
-          path: /tmp/infracost-comment.md
+          name: oiq-${{ inputs.tier }}-${{ inputs.environment }}-${{ github.sha }}
+          path: oiq-comment.md
           retention-days: 7
+          if-no-files-found: warn
 
   # ────────────────────────────────────────────────────────────────────────────
   # PR COMMENT — unified comment with plan summary + full plan + cost impact
@@ -271,17 +202,17 @@ jobs:
       pull-requests: write
     steps:
       - name: Download plan artifact
-        uses: actions/download-artifact@fa0a91b85d4f404e444306234780b10a6d93a55  # v4.1.8
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16  # v4.1.8
         with:
           name: tfplan-${{ inputs.tier }}-${{ inputs.environment }}-${{ github.sha }}
           path: /tmp/tfplan
 
       - name: Download cost artifact
         if: needs.cost-analysis.result == 'success'
-        uses: actions/download-artifact@fa0a91b85d4f404e444306234780b10a6d93a55  # v4.1.8
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16  # v4.1.8
         with:
-          name: infracost-${{ inputs.tier }}-${{ inputs.environment }}-${{ github.sha }}
-          path: /tmp/infracost
+          name: oiq-${{ inputs.tier }}-${{ inputs.environment }}-${{ github.sha }}
+          path: /tmp/oiq
         continue-on-error: true
 
       - name: Build and post PR comment
@@ -298,7 +229,7 @@ jobs:
               ? planText.slice(0, 40000) + '\n\n_(output truncated — see workflow logs for full plan)_'
               : planText;
 
-            const costPath = '/tmp/infracost/infracost-comment.md';
+            const costPath = '/tmp/oiq/oiq-comment.md';
             const costText = fs.existsSync(costPath)
               ? fs.readFileSync(costPath, 'utf8')
               : null;
@@ -326,7 +257,7 @@ jobs:
             ];
 
             if (costText) {
-              sections.push('', '<details><summary>💰 Cost Impact (Infracost)</summary>', '');
+              sections.push('', '<details><summary>💰 Cost Impact (OpenInfraQuote)</summary>', '');
               sections.push(costText);
               sections.push('</details>');
             }
@@ -374,11 +305,6 @@ jobs:
       needs.plan.outputs.has_changes == 'true'
     runs-on: ubuntu-latest
     environment: ${{ inputs.tier }}-${{ inputs.environment }}
-    env:
-      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      ARM_USE_OIDC: "true"
     outputs:
       apply_summary: ${{ steps.summary.outputs.summary }}
     steps:
@@ -386,24 +312,19 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@b9cd54531c595e89e64e7c8d7e2fca24da5f5a7e  # v3.2.0
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd  # v3.1.2
         with:
           terraform_version: ${{ inputs.tf_version }}
 
       - name: Download plan artifact
-        uses: actions/download-artifact@fa0a91b85d4f404e444306234780b10a6d93a55  # v4.1.8
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16  # v4.1.8
         with:
           name: tfplan-${{ inputs.tier }}-${{ inputs.environment }}-${{ github.sha }}
           path: ${{ inputs.working_directory }}
 
       - name: Terraform Init
         working-directory: ${{ inputs.working_directory }}
-        run: |
-          terraform init \
-            -backend-config="resource_group_name=${{ inputs.state_resource_group }}" \
-            -backend-config="storage_account_name=${{ inputs.state_storage_account }}" \
-            -backend-config="container_name=${{ inputs.state_container }}" \
-            -backend-config="key=${{ inputs.state_key }}"
+        run: terraform init
 
       - name: Terraform Apply (immutable — exact plan from plan job)
         working-directory: ${{ inputs.working_directory }}
@@ -436,7 +357,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
 
       - name: Download plan artifact
-        uses: actions/download-artifact@fa0a91b85d4f404e444306234780b10a6d93a55  # v4.1.8
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16  # v4.1.8
         with:
           name: tfplan-${{ inputs.tier }}-${{ inputs.environment }}-${{ github.sha }}
           path: /tmp/tfplan

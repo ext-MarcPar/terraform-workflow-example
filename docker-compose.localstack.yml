@@ -1,0 +1,20 @@
+services:
+  localstack:
+    image: localstack/localstack-azure-alpha
+    container_name: localstack-azure
+    ports:
+      - "4566:4566"
+    environment:
+      # Required — obtain from https://app.localstack.cloud/workspace/auth-token
+      LOCALSTACK_AUTH_TOKEN: ${LOCALSTACK_AUTH_TOKEN:?LOCALSTACK_AUTH_TOKEN must be set}
+      DEBUG: "0"
+      DOCKER_HOST: unix:///var/run/docker.sock
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${LOCALSTACK_VOLUME_DIR:-./localstack-volume}:/var/lib/localstack
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:4566/_localstack/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
