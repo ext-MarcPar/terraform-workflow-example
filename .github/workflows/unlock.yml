@@ -1,0 +1,59 @@
+name: Terraform Unlock
+
+# Releases a stuck Terraform state lock.
+# Run this when terraform apply fails with "Error acquiring the state lock"
+# and the lock was not released automatically.
+#
+# Find the lock ID in the error output:
+#   Lock Info:
+#     ID: <lock-id>     ← copy this value
+#
+# The job runs inside the matching GitHub Environment so the same required-
+# reviewer gate applies as the apply job — protecting production state.
+#
+# ── WHEN WIRING TO REAL AZURE ─────────────────────────────────────────────────
+# Add the same backend-config inputs and ARM_* env vars used in
+# reusable-az-terraform.yml so that terraform init can reach the azurerm backend.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tier:
+        description: "Tier with the stuck lock"
+        type: choice
+        options: [core, data, compute, workloads, edge]
+        required: true
+      environment:
+        description: "Environment with the stuck lock"
+        type: choice
+        options: [dev, uat, prd]
+        required: true
+      lock_id:
+        description: "Lock ID from the error message"
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  unlock:
+    name: Unlock / ${{ inputs.tier }} / ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.tier }}-${{ inputs.environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd  # v3.1.2
+        with:
+          terraform_version: "1.11.4"
+
+      - name: Terraform Init
+        working-directory: ${{ inputs.tier }}
+        run: terraform init
+
+      - name: Terraform Force-Unlock
+        working-directory: ${{ inputs.tier }}
+        run: terraform force-unlock -force "${{ inputs.lock_id }}"
