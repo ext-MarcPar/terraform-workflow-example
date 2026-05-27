@@ -36,7 +36,7 @@ jobs:
   # ── DEV ─────────────────────────────────────────────────────────────────────
   core-dev:
     name: Apply / core / dev
-    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@df49ced80a0e7245a21d068a1347ee5495862742
+    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@c8e8913d690a513fc04472c1e30c6fe48d1ffff4
     with:
       tier: core
       environment: dev
@@ -49,7 +49,7 @@ jobs:
   data-dev:
     name: Apply / data / dev
     needs: core-dev
-    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@df49ced80a0e7245a21d068a1347ee5495862742
+    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@c8e8913d690a513fc04472c1e30c6fe48d1ffff4
     with:
       tier: data
       environment: dev
@@ -62,7 +62,7 @@ jobs:
   compute-dev:
     name: Apply / compute / dev
     needs: data-dev
-    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@df49ced80a0e7245a21d068a1347ee5495862742
+    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@c8e8913d690a513fc04472c1e30c6fe48d1ffff4
     with:
       tier: compute
       environment: dev
@@ -75,7 +75,7 @@ jobs:
   workloads-dev:
     name: Apply / workloads / dev
     needs: compute-dev
-    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@df49ced80a0e7245a21d068a1347ee5495862742
+    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@c8e8913d690a513fc04472c1e30c6fe48d1ffff4
     with:
       tier: workloads
       environment: dev
@@ -88,7 +88,7 @@ jobs:
   edge-dev:
     name: Apply / edge / dev
     needs: compute-dev   # peer-optional with workloads
-    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@df49ced80a0e7245a21d068a1347ee5495862742
+    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@c8e8913d690a513fc04472c1e30c6fe48d1ffff4
     with:
       tier: edge
       environment: dev
@@ -102,7 +102,7 @@ jobs:
   core-uat:
     name: Apply / core / uat
     needs: [workloads-dev, edge-dev]
-    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@df49ced80a0e7245a21d068a1347ee5495862742
+    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@c8e8913d690a513fc04472c1e30c6fe48d1ffff4
     with:
       tier: core
       environment: uat
@@ -115,7 +115,7 @@ jobs:
   data-uat:
     name: Apply / data / uat
     needs: core-uat
-    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@df49ced80a0e7245a21d068a1347ee5495862742
+    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@c8e8913d690a513fc04472c1e30c6fe48d1ffff4
     with:
       tier: data
       environment: uat
@@ -128,7 +128,7 @@ jobs:
   compute-uat:
     name: Apply / compute / uat
     needs: data-uat
-    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@df49ced80a0e7245a21d068a1347ee5495862742
+    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@c8e8913d690a513fc04472c1e30c6fe48d1ffff4
     with:
       tier: compute
       environment: uat
@@ -141,7 +141,7 @@ jobs:
   workloads-uat:
     name: Apply / workloads / uat
     needs: compute-uat
-    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@df49ced80a0e7245a21d068a1347ee5495862742
+    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@c8e8913d690a513fc04472c1e30c6fe48d1ffff4
     with:
       tier: workloads
       environment: uat
@@ -154,7 +154,7 @@ jobs:
   edge-uat:
     name: Apply / edge / uat
     needs: compute-uat
-    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@df49ced80a0e7245a21d068a1347ee5495862742
+    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@c8e8913d690a513fc04472c1e30c6fe48d1ffff4
     with:
       tier: edge
       environment: uat
@@ -168,7 +168,7 @@ jobs:
   core-prd:
     name: Apply / core / prd
     needs: [workloads-uat, edge-uat]
-    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@df49ced80a0e7245a21d068a1347ee5495862742
+    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@c8e8913d690a513fc04472c1e30c6fe48d1ffff4
     with:
       tier: core
       environment: prd
@@ -181,7 +181,7 @@ jobs:
   data-prd:
     name: Apply / data / prd
     needs: core-prd
-    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@df49ced80a0e7245a21d068a1347ee5495862742
+    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@c8e8913d690a513fc04472c1e30c6fe48d1ffff4
     with:
       tier: data
       environment: prd
@@ -194,7 +194,7 @@ jobs:
   compute-prd:
     name: Apply / compute / prd
     needs: data-prd
-    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@df49ced80a0e7245a21d068a1347ee5495862742
+    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@c8e8913d690a513fc04472c1e30c6fe48d1ffff4
     with:
       tier: compute
       environment: prd
@@ -207,7 +207,7 @@ jobs:
   workloads-prd:
     name: Apply / workloads / prd
     needs: compute-prd
-    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@df49ced80a0e7245a21d068a1347ee5495862742
+    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@c8e8913d690a513fc04472c1e30c6fe48d1ffff4
     with:
       tier: workloads
       environment: prd
@@ -220,7 +220,7 @@ jobs:
   edge-prd:
     name: Apply / edge / prd
     needs: compute-prd
-    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@df49ced80a0e7245a21d068a1347ee5495862742
+    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@c8e8913d690a513fc04472c1e30c6fe48d1ffff4
     with:
       tier: edge
       environment: prd

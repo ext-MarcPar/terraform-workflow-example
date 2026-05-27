@@ -8,7 +8,7 @@ A reference implementation of the [Platform Deployment Pattern](../Azure-archite
 - **Immutable apply** — the exact binary plan from the `plan` job is applied; no drift between review and execution
 - **LocalStack PoC mode** — CI runs against the free `localstack/localstack` Community image on the runner; no auth token, no Azure subscription or credentials needed
 - **Per-tier blast radius** — a failure or misconfiguration in one layer cannot affect others
-- **Cost visibility on PRs** — Infracost shows monthly cost impact before any reviewer approves
+- **Cost visibility on PRs** — OpenInfraQuote shows cost impact fully offline — no API key required
 - **Automated release trail** — every successful apply updates `CHANGELOG.md` and creates a GitHub Release
 
 ---
@@ -22,11 +22,15 @@ A reference implementation of the [Platform Deployment Pattern](../Azure-archite
 │   ├── actions/
 │   │   └── tf-layer/
 │   │       └── action.yml                  # Composite action: tf init + plan or apply
+│   ├── pull_request_template.md            # PR checklist — enforced on every pull request
 │   └── workflows/
-│       ├── reusable-az-terraform.yml       # Core reusable workflow (all logic lives here)
 │       ├── plan.yml                        # Called on pull_request — plans all layers
 │       ├── apply.yml                       # Called on push to main — applies dev → uat → prd
-│       └── changelog.yml                   # Called on release published — updates CHANGELOG.md
+│       ├── changelog.yml                   # Called on release published — updates CHANGELOG.md
+│       └── unlock.yml                      # Manual workflow — releases a stuck state lock
+│
+│   # Pipeline logic lives in the centralized workflow repo:
+│   # ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml
 │
 ├── core/                                   # L1: VNet, NSGs, LAWS, UAMIs, DNS zones
 │   ├── versions.tf
@@ -93,7 +97,7 @@ PR opened / updated
     │       ↓
     ├─ plan (core)         terraform plan → upload artifact
     │       ↓
-    ├─ cost (core)         Infracost diff
+    ├─ cost (core)         OpenInfraQuote offline estimate
     │       ↓
     ├─ pr-comment (core)   unified comment: summary + plan + cost
     │
@@ -274,7 +278,7 @@ This PoC runs against LocalStack. When you copy this template to a real product 
 
 2. **`remote.tf` in each layer** — uncomment the `state_backend` locals and `data "terraform_remote_state"` blocks; update `bu_code` and `product_name` to match your repo variables
 
-3. **`reusable-az-terraform.yml`** — remove the "Start LocalStack" and "Write LocalStack provider override" steps; add back `state_resource_group`, `state_storage_account`, `state_container`, `state_key` inputs; restore `AZURE_CLIENT_ID` / `AZURE_TENANT_ID` / `AZURE_SUBSCRIPTION_ID` secrets; add `ARM_USE_OIDC: "true"` + `ARM_CLIENT_ID` + `ARM_TENANT_ID` + `ARM_SUBSCRIPTION_ID` to the plan and apply job env blocks
+3. **Centralized workflow** — update the SHA reference in `plan.yml` and `apply.yml` to a production-ready commit of `ext-MarcPar/example-centralize-workflow`. See that repo's README for the full secrets interface and OIDC federated credential setup.
 
 4. **Create Azure Service Principals** — one Reader SP for plan runs (two federated credentials: `pull_request` and `ref:refs/heads/main` subjects) and one Apply SP per environment (federated credential per tier per environment using `environment:<tier>-<env>` subject)
 
@@ -296,4 +300,4 @@ The `localstack/localstack` image failed to start or the health endpoint isn't r
 With `backend "local"` each job uses ephemeral state — this shouldn't occur in PoC mode. If it happens after wiring to `backend "azurerm"`, use `terraform force-unlock <lock-id>`.
 
 **Cost analysis shows `$0` for everything**
-Infracost requires a valid API key and the resource types to be supported. Check the Infracost output in the workflow logs. Some Azure resource types have limited Infracost support.
+OpenInfraQuote runs fully offline and supports a subset of resource types. Check the `oiq-comment.md` artifact in the workflow run for details. If a resource type is unsupported it will be skipped silently.
