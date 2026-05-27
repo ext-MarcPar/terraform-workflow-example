@@ -24,42 +24,58 @@ jobs:
   # ── L1 Core ──────────────────────────────────────────────────────────────
   core:
     name: Plan / core
-    uses: ./.github/workflows/reusable-az-terraform.yml
+    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@df49ced80a0e7245a21d068a1347ee5495862742
     with:
       tier: core
       environment: dev
       working_directory: core
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID_PLAN }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID_DEV }}
 
   # ── L2 Data ───────────────────────────────────────────────────────────────
   data:
     name: Plan / data
     needs: core
-    uses: ./.github/workflows/reusable-az-terraform.yml
+    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@df49ced80a0e7245a21d068a1347ee5495862742
     with:
       tier: data
       environment: dev
       working_directory: data
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID_PLAN }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID_DEV }}
 
   # ── L3 Compute ────────────────────────────────────────────────────────────
   compute:
     name: Plan / compute
     needs: data
-    uses: ./.github/workflows/reusable-az-terraform.yml
+    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@df49ced80a0e7245a21d068a1347ee5495862742
     with:
       tier: compute
       environment: dev
       working_directory: compute
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID_PLAN }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID_DEV }}
 
   # ── L4 Workloads (optional) ───────────────────────────────────────────────
   # Remove this job if the product has no Terraform-managed workload layer.
   workloads:
     name: Plan / workloads
     needs: compute
-    uses: ./.github/workflows/reusable-az-terraform.yml
+    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@df49ced80a0e7245a21d068a1347ee5495862742
     with:
       tier: workloads
       environment: dev
       working_directory: workloads
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID_PLAN }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID_DEV }}
 
   # ── L5 Edge (optional) ────────────────────────────────────────────────────
   # L4 and L5 are peer-optional off L3. Edge does not depend on workloads
@@ -68,8 +84,12 @@ jobs:
   edge:
     name: Plan / edge
     needs: compute
-    uses: ./.github/workflows/reusable-az-terraform.yml
+    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@df49ced80a0e7245a21d068a1347ee5495862742
     with:
       tier: edge
       environment: dev
       working_directory: edge
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID_PLAN }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID_DEV }}

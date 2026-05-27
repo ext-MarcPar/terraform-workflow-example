@@ -36,151 +36,196 @@ jobs:
   # ── DEV ─────────────────────────────────────────────────────────────────────
   core-dev:
     name: Apply / core / dev
-    uses: ./.github/workflows/reusable-az-terraform.yml
+    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@df49ced80a0e7245a21d068a1347ee5495862742
     with:
       tier: core
       environment: dev
       working_directory: core
-    secrets: inherit
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID_APPLY }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
   data-dev:
     name: Apply / data / dev
     needs: core-dev
-    uses: ./.github/workflows/reusable-az-terraform.yml
+    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@df49ced80a0e7245a21d068a1347ee5495862742
     with:
       tier: data
       environment: dev
       working_directory: data
-    secrets: inherit
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID_APPLY }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
   compute-dev:
     name: Apply / compute / dev
     needs: data-dev
-    uses: ./.github/workflows/reusable-az-terraform.yml
+    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@df49ced80a0e7245a21d068a1347ee5495862742
     with:
       tier: compute
       environment: dev
       working_directory: compute
-    secrets: inherit
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID_APPLY }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
   workloads-dev:
     name: Apply / workloads / dev
     needs: compute-dev
-    uses: ./.github/workflows/reusable-az-terraform.yml
+    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@df49ced80a0e7245a21d068a1347ee5495862742
     with:
       tier: workloads
       environment: dev
       working_directory: workloads
-    secrets: inherit
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID_APPLY }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
   edge-dev:
     name: Apply / edge / dev
     needs: compute-dev   # peer-optional with workloads
-    uses: ./.github/workflows/reusable-az-terraform.yml
+    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@df49ced80a0e7245a21d068a1347ee5495862742
     with:
       tier: edge
       environment: dev
       working_directory: edge
-    secrets: inherit
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID_APPLY }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
   # ── UAT ─────────────────────────────────────────────────────────────────────
   core-uat:
     name: Apply / core / uat
     needs: [workloads-dev, edge-dev]
-    uses: ./.github/workflows/reusable-az-terraform.yml
+    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@df49ced80a0e7245a21d068a1347ee5495862742
     with:
       tier: core
       environment: uat
       working_directory: core
-    secrets: inherit
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID_APPLY }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
   data-uat:
     name: Apply / data / uat
     needs: core-uat
-    uses: ./.github/workflows/reusable-az-terraform.yml
+    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@df49ced80a0e7245a21d068a1347ee5495862742
     with:
       tier: data
       environment: uat
       working_directory: data
-    secrets: inherit
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID_APPLY }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
   compute-uat:
     name: Apply / compute / uat
     needs: data-uat
-    uses: ./.github/workflows/reusable-az-terraform.yml
+    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@df49ced80a0e7245a21d068a1347ee5495862742
     with:
       tier: compute
       environment: uat
       working_directory: compute
-    secrets: inherit
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID_APPLY }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
   workloads-uat:
     name: Apply / workloads / uat
     needs: compute-uat
-    uses: ./.github/workflows/reusable-az-terraform.yml
+    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@df49ced80a0e7245a21d068a1347ee5495862742
     with:
       tier: workloads
       environment: uat
       working_directory: workloads
-    secrets: inherit
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID_APPLY }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
   edge-uat:
     name: Apply / edge / uat
     needs: compute-uat
-    uses: ./.github/workflows/reusable-az-terraform.yml
+    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@df49ced80a0e7245a21d068a1347ee5495862742
     with:
       tier: edge
       environment: uat
       working_directory: edge
-    secrets: inherit
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID_APPLY }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
   # ── PRD ─────────────────────────────────────────────────────────────────────
   core-prd:
     name: Apply / core / prd
     needs: [workloads-uat, edge-uat]
-    uses: ./.github/workflows/reusable-az-terraform.yml
+    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@df49ced80a0e7245a21d068a1347ee5495862742
     with:
       tier: core
       environment: prd
       working_directory: core
-    secrets: inherit
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID_APPLY }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
   data-prd:
     name: Apply / data / prd
     needs: core-prd
-    uses: ./.github/workflows/reusable-az-terraform.yml
+    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@df49ced80a0e7245a21d068a1347ee5495862742
     with:
       tier: data
       environment: prd
       working_directory: data
-    secrets: inherit
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID_APPLY }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
   compute-prd:
     name: Apply / compute / prd
     needs: data-prd
-    uses: ./.github/workflows/reusable-az-terraform.yml
+    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@df49ced80a0e7245a21d068a1347ee5495862742
     with:
       tier: compute
       environment: prd
       working_directory: compute
-    secrets: inherit
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID_APPLY }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
   workloads-prd:
     name: Apply / workloads / prd
     needs: compute-prd
-    uses: ./.github/workflows/reusable-az-terraform.yml
+    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@df49ced80a0e7245a21d068a1347ee5495862742
     with:
       tier: workloads
       environment: prd
       working_directory: workloads
-    secrets: inherit
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID_APPLY }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
   edge-prd:
     name: Apply / edge / prd
     needs: compute-prd
-    uses: ./.github/workflows/reusable-az-terraform.yml
+    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@df49ced80a0e7245a21d068a1347ee5495862742
     with:
       tier: edge
       environment: prd
       working_directory: edge
-    secrets: inherit
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID_APPLY }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
