@@ -24,7 +24,7 @@ jobs:
   # ── L1 Core ──────────────────────────────────────────────────────────────
   core:
     name: Plan / core
-    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@df49ced80a0e7245a21d068a1347ee5495862742
+    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@c8e8913d690a513fc04472c1e30c6fe48d1ffff4
     with:
       tier: core
       environment: dev
@@ -38,7 +38,7 @@ jobs:
   data:
     name: Plan / data
     needs: core
-    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@df49ced80a0e7245a21d068a1347ee5495862742
+    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@c8e8913d690a513fc04472c1e30c6fe48d1ffff4
     with:
       tier: data
       environment: dev
@@ -52,7 +52,7 @@ jobs:
   compute:
     name: Plan / compute
     needs: data
-    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@df49ced80a0e7245a21d068a1347ee5495862742
+    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@c8e8913d690a513fc04472c1e30c6fe48d1ffff4
     with:
       tier: compute
       environment: dev
@@ -67,7 +67,7 @@ jobs:
   workloads:
     name: Plan / workloads
     needs: compute
-    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@df49ced80a0e7245a21d068a1347ee5495862742
+    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@c8e8913d690a513fc04472c1e30c6fe48d1ffff4
     with:
       tier: workloads
       environment: dev
@@ -84,7 +84,7 @@ jobs:
   edge:
     name: Plan / edge
     needs: compute
-    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@df49ced80a0e7245a21d068a1347ee5495862742
+    uses: ext-MarcPar/example-centralize-workflow/.github/workflows/reusable-az-terraform.yml@c8e8913d690a513fc04472c1e30c6fe48d1ffff4
     with:
       tier: edge
       environment: dev
